@@ -1,0 +1,268 @@
+{
+  "name": "Short Emails",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "q": "in:inbox -category:promotions -category:social"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e1433abe-a252-4c29-a2d9-465c7c2e5ba6",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lqtb8HCwmme4ymyj",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subject = ($json.subject || \"\").toLowerCase();\n\n// Build a \"best effort\" text blob from whatever Gmail/n8n provides\nconst parts = [\n  $json.textPlain,\n  $json.textHtml,\n  $json.snippet,\n  $json.body,\n  $json.text,          // sometimes nodes expose this\n  $json.message,       // sometimes nodes expose this\n].filter(Boolean);\n\nconst text = (subject + \"\\n\" + parts.join(\"\\n\")).toLowerCase();\n\nconst has = (patterns) => patterns.some((p) => p.test(text));\n\n// --- Patterns (tweak freely) ---\n\nconst interviewPatterns = [\n  /\\binterview\\b/,\n  /\\bphone screen\\b/,\n  /\\btechnical screen\\b/,\n  /\\bintro call\\b/,\n  /\\bnext step\\b/,\n  /\\bnext steps\\b/,\n  /\\bschedule\\b/,\n  /\\bscheduling\\b/,\n  /\\bavailability\\b/,\n  /\\bcalendar\\b/,\n  /\\bcalendly\\b/,\n  /\\bmeeting\\b/,\n  /\\bcall\\b/,\n  /\\bconversation\\b/,\n  /\\bchat\\b/,\n  /\\bdiscussion\\b/,\n  /\\bonsite\\b/,\n  /\\bcase study\\b/,\n  /\\bhome assignment\\b/,\n];\n\n\nconst rejectionPatterns = [\n  /\\bregret to inform you\\b/,\n  /\\bwe regret\\b/,\n  /\\bunfortunately\\b/,\n  /\\bnot moving forward\\b/,\n  /\\bwon'?t be moving forward\\b/,\n  /\\bwe have decided to move forward\\b.*\\b(other|with other candidates|another candidate)\\b/,\n  /\\bother candidates\\b/,\n  /\\bnot selected\\b/,\n  /\\bposition has been filled\\b/,\n  /\\bwe will not be proceeding\\b/,\n  /\\bapplication was unsuccessful\\b/,\n];\n\nconst applicationPatterns = [\n  /\\bapplication received\\b/,\n  /\\bwe received your application\\b/,\n  /\\bThank you for your application\\b/,\n  /\\bThank you for applying to\\b/,\n  /\\bwe have received your application\\b/,\n  /\\bwe'?re pleased to confirm\\b.*\\breceived your application\\b/,\n  /\\bthanks for applying\\b/,\n  /\\bthank you for applying\\b/,\n  /\\bthank you for your application\\b/,\n  /\\bapplication confirmation\\b/,\n  /\\byour application\\b.*\\b(has been submitted|has been received|is confirmed)\\b/,\n  /\\bwe'?ll review your application\\b/,\n  /\\bour recruitment team will review\\b/,\n];\n\n// Priority order matters\nlet category = \"other\";\n\nif (has(rejectionPatterns)) category = \"rejection\";\nelse if (has(interviewPatterns)) category = \"interview\";\nelse if (has(applicationPatterns)) category = \"application\";\n\nreturn [{ json: { ...$json, category, _debugTextLength: text.length } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "d254897a-c2da-40f9-ac78-3dfab942a72e",
+      "name": "Classifier Emails"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.category}}",
+                    "rightValue": "application",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2ee7bbef-130e-41a7-a1a4-6b132dda9dc8"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "1eb7017b-d791-47d4-9e58-6c27fe0ba114",
+                    "leftValue": "={{$json.category}}",
+                    "rightValue": "interview",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8671e20a-d374-4834-af61-b42b8b4778c3",
+                    "leftValue": "={{$json.category}}",
+                    "rightValue": "rejection",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "9a109b21-c045-48ca-8533-de19273a1b76",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{$json.id}}",
+        "labelIds": [
+          "Label_3989342240965294815"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        -112
+      ],
+      "id": "f461629f-1836-4828-a4b7-37e935295f5e",
+      "name": "Applications 2026",
+      "webhookId": "742bfb5a-c56e-4faa-b930-746c616310b7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lqtb8HCwmme4ymyj",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{$json.id}}",
+        "labelIds": [
+          "Label_7501883202844147548"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        48
+      ],
+      "id": "c586439b-a942-42a1-9949-cec96c5f9d46",
+      "name": "Interviews 2026",
+      "webhookId": "048e0b9f-8720-42c6-8b75-668ae42e6dd1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6yHXnBYsPqckx8Em",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{$json.id}}",
+        "labelIds": [
+          "Label_798013032001469572"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        224
+      ],
+      "id": "8bc677cd-fe22-4c22-b451-fb5762195dbb",
+      "name": "Rejections 2026",
+      "webhookId": "0a45bd74-a57c-4883-899d-81e49e4c9dd3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6yHXnBYsPqckx8Em",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Classifier Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classifier Emails": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Applications 2026",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Interviews 2026",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejections 2026",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "6506e6f6-5589-4114-9f9e-e6d574362d97",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "218efeb8f60ac1c070ee78dbba3fb4238ef805c3e883056f8ce61a8d09d30f62"
+  },
+  "id": "Uev3QuBV6UpUAgp1",
+  "tags": []
+}
